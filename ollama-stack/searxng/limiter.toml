@@ -1,0 +1,7 @@
+# Локальный инстанс: ограничитель запросов выключен целиком,
+# иначе SearXNG начнёт отдавать 429 на серии запросов от Open WebUI.
+[botdetection.ip_limit]
+link_token = false
+
+[botdetection.ip_lists]
+pass_ip = ["172.18.0.0/16", "127.0.0.1"]

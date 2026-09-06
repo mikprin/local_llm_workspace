@@ -1,0 +1,19 @@
+# Минимальный конфиг SearXNG под Open WebUI.
+# Главное здесь — формат json в search.formats: без него Open WebUI
+# не сможет разобрать выдачу и веб-поиск молча вернёт пустой результат.
+use_default_settings: true
+
+server:
+  secret_key: "e279fd9d620d891ce6d2c9fba10ecdf0aa869f90372c5ee28abf5ab22deb131a"
+  limiter: false          # инстанс не публичный, защита от ботов только мешает
+  image_proxy: false
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  formats:
+    - html
+    - json                # <- обязательно для Open WebUI
+
+ui:
+  static_use_hash: true

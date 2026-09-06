@@ -36,8 +36,57 @@ services:
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
       - WEBUI_AUTH=True
+
+      # --- Веб-поиск (тумблер "Web Search" в меню + внутри чата) ---
+      - ENABLE_WEB_SEARCH=True
+      - WEB_SEARCH_ENGINE=searxng
+      - SEARXNG_QUERY_URL=http://searxng:8080/search?q=<query>
+      # Сколько ссылок из выдачи реально скачивать и класть в контекст.
+      # Каждая ссылка = загрузка страницы + эмбеддинги, так что 4 - разумный потолок.
+      - WEB_SEARCH_RESULT_COUNT=4
+      - WEB_SEARCH_CONCURRENT_REQUESTS=4
+
+      # --- Загрузка конкретной страницы (синтаксис #https://... в чате) ---
+      # playwright рендерит JS: без него SPA-документация приходит пустой
+      - RAG_WEB_LOADER_ENGINE=playwright
+      - PLAYWRIGHT_WS_URL=ws://playwright:3000
+
+      # --- Эмбеддинги ---
+      # Пустое значение = встроенный sentence-transformers на CPU.
+      # Намеренно не отдаём это в Ollama: иначе встанет в ту же очередь к GPU,
+      # что и генерация (OLLAMA_NUM_PARALLEL=1) и добавит задержек.
+      - RAG_EMBEDDING_ENGINE=
     depends_on:
       - ollama
+      - searxng
+      - playwright
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    restart: unless-stopped
+    # Порт наружу не публикуем: ходит только Open WebUI по внутренней сети.
+    # Раскомментируйте, если захотите открыть сам поисковик в браузере.
+    # ports:
+    #   - "127.0.0.1:8080:8080"
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+      - UWSGI_WORKERS=4
+      - UWSGI_THREADS=4
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.49.1-noble
+    container_name: playwright
+    restart: unless-stopped
+    command: npx -y playwright@1.49.1 run-server --port 3000 --host 0.0.0.0
 
 volumes:
   ollama-models:
