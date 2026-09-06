@@ -1,0 +1,44 @@
+# Стартовый стек: Ollama (движок + OpenAI-совместимый API) + Open WebUI (браузерный чат)
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      # Сырой API Ollama — БЕЗ аутентификации. Доступен всем в 10.12.12.0/24.
+      # Закройте файрволом или закомментируйте, если хватает API через Open WebUI.
+      - "0.0.0.0:11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=30m     # держать модель в VRAM между запросами
+      - OLLAMA_FLASH_ATTENTION=1
+      - OLLAMA_KV_CACHE_TYPE=q8_0 # экономит VRAM на длинном контексте
+      - OLLAMA_CONTEXT_LENGTH=32768
+      - OLLAMA_HOST=0.0.0.0:11434
+      - OLLAMA_ORIGINS=*
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:3000:8080"
+    volumes:
+      - open-webui:/app/backend/data
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - WEBUI_AUTH=True
+    depends_on:
+      - ollama
+
+volumes:
+  ollama-models:
+  open-webui:
