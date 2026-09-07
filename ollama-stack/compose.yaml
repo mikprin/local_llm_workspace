@@ -10,6 +10,10 @@ services:
       - "0.0.0.0:11434:11434"
     volumes:
       - ollama-models:/root/.ollama
+      # Локальные .gguf для импорта через `ollama create` (см. gguf/Modelfile.*).
+      # ollama create копирует файл в свой блоб-стор, так что после импорта
+      # исходник из ./gguf можно удалить.
+      - ./gguf:/gguf:ro
     environment:
       - OLLAMA_KEEP_ALIVE=30m     # держать модель в VRAM между запросами
       - OLLAMA_FLASH_ATTENTION=1

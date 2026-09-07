@@ -7,7 +7,7 @@ BPW = {"fp16":16,"q8_0":8.5,"q6_k":6.6,"q5_k_m":5.7,"q4_k_m":4.8,
 
 p = argparse.ArgumentParser()
 p.add_argument("params", type=float, help="млрд параметров (всего, для MoE тоже всего)")
-p.add_argument("--quant", default="q4_k_m", choices=BPW)
+p.add_argument("--quant", default="q8_0", choices=BPW)
 p.add_argument("--ctx", type=int, default=32768, help="длина контекста (число токенов)")
 p.add_argument("--layers", type=int, default=48)
 p.add_argument("--kv-heads", type=int, default=8, help="KV-головы (GQA), не attention-головы")
@@ -19,7 +19,7 @@ a = p.parse_args()
 weights = a.params * BPW[a.quant] / 8
 kv_bytes = {"fp16":2,"q8_0":1,"q4_0":0.5}[a.kv_quant]
 kv = 2 * a.layers * a.kv_heads * a.head_dim * a.ctx * kv_bytes / 1024**3
-overhead = 0.7
+overhead = 0.5
 total = weights + kv + overhead
 
 print(f"веса   ({a.quant:7}) : {weights:6.2f} ГБ")

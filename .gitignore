@@ -1,0 +1,3 @@
+
+# Локальные веса моделей - не в git
+ollama-stack/gguf/*.gguf
