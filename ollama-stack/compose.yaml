@@ -9,7 +9,11 @@ services:
       # Закройте файрволом или закомментируйте, если хватает API через Open WebUI.
       - "0.0.0.0:11434:11434"
     volumes:
-      - ollama-models:/root/.ollama
+      # Блоб-стор Ollama лежит рядом с проектом, а не в /var/lib/docker:
+      # видно `du`, просто бэкапить, переживает `docker compose down -v`.
+      # Файлы принадлежат root (Ollama в контейнере работает от root) -
+      # чистить через scripts/ollama-gc.sh, а не руками.
+      - ./model_store:/root/.ollama
       # Локальные .gguf для импорта через `ollama create` (см. gguf/Modelfile.*).
       # ollama create копирует файл в свой блоб-стор, так что после импорта
       # исходник из ./gguf можно удалить.
@@ -93,5 +97,4 @@ services:
     command: npx -y playwright@1.49.1 run-server --port 3000 --host 0.0.0.0
 
 volumes:
-  ollama-models:
   open-webui:

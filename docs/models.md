@@ -1,5 +1,9 @@
 # Выбор моделей
 
+ollama run hf.co/thomasgauthier/talkie-1930-13b-it-GGUF:Q4_K_M
+ollama run hf.co/JonathanColetti/Qwen3.8-27B-Uncensored-GGUF:Q4_K_M
+ollama run hf.co/thomasgauthier/talkie-1930-13b-it-GGUF:Q6_K
+
 Журнал фактических решений по моделям для этой машины (RTX 4070 Ti Super 16 ГБ).
 Общая методология — квантование, формула VRAM, чтение `ollama ps` — в [../README.md](../README.md).
 Здесь то, чего там нет: **как искать модели самому** и **какие цифры получились в итоге**.
