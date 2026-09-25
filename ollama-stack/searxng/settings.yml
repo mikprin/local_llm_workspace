@@ -17,3 +17,56 @@ search:
 
 ui:
   static_use_hash: true
+
+# --- Исходящие запросы ---
+# Дефолтные 3.0 обычно хватает: сейчас поисковики отвечают за ~0.45 с.
+# Но канал тут бывает медленным (замеряли и 2-16 с), и тогда 3 секунды
+# режут всю выдачу и поиск молча возвращает 0 результатов. 6 секунд -
+# компромисс: на медленном канале выдача выживает, на быстром лишнего
+# ожидания нет, потому что таймаут это потолок, а не задержка.
+outgoing:
+  request_timeout: 6.0
+  max_request_timeout: 15.0
+  pool_connections: 100
+
+# Состав движков подобран замером с этого IP (59 general-движков сборки,
+# по 5 запросов на каждый). Большинство популярных нас блокируют:
+#   brave       - 429 Too Many Requests
+#   startpage   - CAPTCHA
+#   duckduckgo  - CAPTCHA, 0/6 успешных запросов
+#   mojeek      - HTTP 200, но в теле JS-капча
+#   bing        - работает через раз, 3/5
+#   qwant/baidu - CAPTCHA;  yahoo - parsing error
+#   google cse  - таймаут на www.google.com (это НЕ обычный google)
+engines:
+  - name: brave
+    disabled: true
+  - name: startpage
+    disabled: true
+  - name: google cse
+    disabled: true
+  - name: duckduckgo
+    disabled: true
+  - name: mojeek
+    disabled: true
+  - name: bing
+    disabled: true
+
+  # Основной. Обычный скрейпер google (шорткат !go), не сломанный
+  # google cse: 5/5 запросов, ~0.4 с, и на русских запросах тоже 10/10.
+  - name: google
+    disabled: false
+
+  # Резерв на случай, если google начнёт отдавать капчу.
+  # resulthunter: 5/5, по 20 результатов, русский держит; медленный (~2.6 с).
+  # gmx: 5/5 стабильно, но на русских запросах даёт 0 - только для англ.
+  - name: resulthunter
+    disabled: false
+  - name: gmx
+    disabled: false
+
+  # Инфобоксы. Внимание: wikipedia/wikidata кладут ответ в infoboxes,
+  # а не в results, а Open WebUI читает только results - в контекст
+  # модели они не попадут. Оставлены для веб-интерфейса SearXNG.
+  - name: wikipedia
+    disabled: false
