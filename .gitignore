@@ -2,3 +2,9 @@
 # Локальные веса моделей - не в git
 ollama-stack/gguf/*.gguf
 ollama-stack/model_store/
+
+# Данные и модели Scriberr - не в git
+scriberr/data/
+scriberr/whisperx-env/
+scriberr/cache/
+scriberr/.env
