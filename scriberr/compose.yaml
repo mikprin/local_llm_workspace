@@ -1,0 +1,41 @@
+# Scriberr: локальная транскрипция аудио (WhisperX) + диаризация, веб-интерфейс.
+# Отдельный стек: на ноуте (Framework 13, Ryzen AI 7 350, Radeon 860M) NVIDIA нет,
+# поэтому CPU-образ. ROCm-сборки у Scriberr нет.
+services:
+  scriberr:
+    # Тег закреплён: разработка апстрима на паузе, latest может уехать неожиданно.
+    image: ghcr.io/rishikanthc/scriberr:v1.2.0
+    container_name: scriberr
+    restart: unless-stopped
+    ports:
+      # Видно всей локальной сети. Только для себя - "127.0.0.1:18180:8080".
+      - "0.0.0.0:18180:8080"  # хост:контейнер; внутри Scriberr всегда 8080
+    volumes:
+      # Bind-маунты рядом с проектом (как model_store в ollama-stack): видно `du`,
+      # просто бэкапить. Каталоги создать заранее (mkdir), иначе docker создаст их от root.
+      # :Z - перемаркировка SELinux (Fedora, Enforcing), без неё контейнер получит EACCES.
+      - ./data:/app/data:Z                  # SQLite, загрузки, транскрипты, JWT-секрет
+      - ./whisperx-env:/app/whisperx-env:Z  # Python-окружения (venv) и .nemo-модели
+      # Без этого маунта кэш живёт в слое контейнера и теряется при пересоздании
+      # (down/up, смена образа): ~/.cache/huggingface - веса Whisper/PyAnnote,
+      # скачиваемые при первой транскрипции; ~/.cache/uv - пакеты (~9 ГБ, torch и пр.).
+      - ./cache:/home/appuser/.cache:Z
+    environment:
+      - PUID=${PUID:-1000}   # = `id -u`, иначе SQLite падает на правах
+      - PGID=${PGID:-1000}
+      - APP_ENV=production   # апстрим просит не менять
+      # Работаем по голому HTTP - без этого не играет аудио в браузере
+      # ("Unable to load audio stream").
+      - SECURE_COOKIES=false
+      # Токен Hugging Face для gated-моделей pyannote. Значение берётся из ./.env
+      # (не в git). Python-процессы наследуют окружение, и huggingface_hub
+      # подхватывает HF_TOKEN сам, если токен не передан явно.
+      - HF_TOKEN=${HF_TOKEN:-}
+      # - ALLOWED_ORIGINS=http://localhost:18180,http://10.75.202.91:18180
+    extra_hosts:
+      # Чтобы из Scriberr достучаться до Ollama на хосте (ollama-stack, порт 11434):
+      # в настройках LLM указать http://host.docker.internal:11434
+      - "host.docker.internal:host-gateway"
+    # RAM на ноуте 30 ГБ. large-v3 (float32 на CPU) + pyannote-диаризация + alignment
+    # пикуют около 8-10 ГБ; 16g даёт запас и всё ещё не даёт уронить хост в swap.
+    mem_limit: 16g
