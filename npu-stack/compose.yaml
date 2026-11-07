@@ -1,0 +1,89 @@
+# NPU-стек для ноута (Framework 13, Ryzen AI 7 350: NPU XDNA2 + Radeon 860M).
+# Вычисления живут НА ХОСТЕ: Lemonade (systemctl --user) -> FastFlowLM (NPU) / llama.cpp (iGPU).
+# Здесь только интерфейс: Open WebUI + веб-поиск. Аналог ollama-stack, но без движка в контейнере.
+# Перед первым `up`: sudo ./host/10-install-system.sh && ./host/20-configure-user.sh (см. README).
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: npu-open-webui
+    restart: unless-stopped
+    # Не root: иначе всё в ./data и ./models/open-webui принадлежит root и чистится только sudo.
+    # Пишет контейнер только в смонтированные каталоги. Единственное место вне их -
+    # .webui_secret_key в /app/backend: его заменяет WEBUI_SECRET_KEY ниже.
+    user: "${PUID:-1000}:${PGID:-1000}"
+    ports:
+      - "0.0.0.0:3000:8080"
+    extra_hosts:
+      # Lemonade слушает на хосте 0.0.0.0:13305
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # Bind-маунты, а не именованные тома: видно `du`, просто бэкапить и чистить.
+      # Каталоги создаёт host/20-configure-user.sh (иначе docker создаст их от root).
+      # :Z - перемаркировка SELinux (Fedora, Enforcing).
+      - ./data/open-webui:/app/backend/data:Z   # SQLite, загрузки, векторная БД
+      - ./models/open-webui:/models:Z           # модели самого Open WebUI (см. ниже)
+    environment:
+      # --- Движок: Lemonade на хосте (OpenAI API) ---
+      - ENABLE_OLLAMA_API=False
+      - OPENAI_API_BASE_URL=http://host.docker.internal:13305/v1
+      - OPENAI_API_KEY=${LEMONADE_API_KEY:?нет .env - запустить ./host/20-configure-user.sh}
+      - WEBUI_AUTH=True
+      # Ключ подписи сессий (JWT). Без него start.sh генерирует файл в слое контейнера:
+      # и не от root его не записать, и при пересоздании контейнера разлогинивает всех.
+      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:?нет .env - запустить ./host/20-configure-user.sh}
+      - HOME=/app/backend/data/home   # ~/.cache и пр. у не-root пользователя без /root
+      # При старте Open WebUI копирует фронтовую статику (favicon, loader.js...) в STATIC_DIR.
+      # Дефолт - внутри образа (/app/backend/open_webui/static), не от root туда не записать.
+      - STATIC_DIR=/app/backend/data/static
+
+      # --- Модели, которые Open WebUI качает сам ---
+      # По умолчанию они лежат в /app/backend/data/cache. Выносим в ./models/open-webui,
+      # чтобы все веса стека были в одном месте - ./models.
+      - HF_HOME=/models/huggingface
+      - SENTENCE_TRANSFORMERS_HOME=/models/sentence-transformers  # эмбеддинги RAG (CPU)
+      - WHISPER_MODEL_DIR=/models/whisper                         # локальный STT
+      - TIKTOKEN_CACHE_DIR=/models/tiktoken
+
+      # --- Веб-поиск (как в ollama-stack) ---
+      - ENABLE_WEB_SEARCH=True
+      - WEB_SEARCH_ENGINE=searxng
+      - SEARXNG_QUERY_URL=http://searxng:8080/search?q=<query>
+      - WEB_SEARCH_RESULT_COUNT=4
+      - WEB_SEARCH_CONCURRENT_REQUESTS=4
+      - RAG_WEB_LOADER_ENGINE=playwright
+      - PLAYWRIGHT_WS_URL=ws://playwright:3000
+
+      # --- Эмбеддинги ---
+      # Пусто = встроенный sentence-transformers на CPU. Можно отдать в Lemonade
+      # (embed-gemma:300m на NPU), но NPU держит одну модель за раз: эмбеддинг
+      # документа выгрузит чат-модель и обратно.
+      - RAG_EMBEDDING_ENGINE=
+    depends_on:
+      - searxng
+      - playwright
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: npu-searxng
+    restart: unless-stopped
+    volumes:
+      # :ro - иначе entrypoint SearXNG делает chown каталога на свой uid 977
+      # (на хосте это flatpak), и файлы из git перестают редактироваться без sudo.
+      - ./searxng:/etc/searxng:ro,Z
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+      - SEARXNG_SECRET=${SEARXNG_SECRET:?нет .env - запустить ./host/20-configure-user.sh}
+      - UWSGI_WORKERS=4
+      - UWSGI_THREADS=4
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.49.1-noble
+    container_name: npu-playwright
+    restart: unless-stopped
+    command: npx -y playwright@1.49.1 run-server --port 3000 --host 0.0.0.0

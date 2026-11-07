@@ -8,3 +8,8 @@ scriberr/data/
 scriberr/whisperx-env/
 scriberr/cache/
 scriberr/.env
+
+# NPU-стек: веса моделей, данные Open WebUI, секреты - не в git
+npu-stack/models/
+npu-stack/data/
+npu-stack/.env
